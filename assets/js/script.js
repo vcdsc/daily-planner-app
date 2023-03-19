@@ -1,75 +1,86 @@
-// This element needs to be targeted so we can display the current day under the lead.
-var currentDay = $("#currentDay");
-var timeblocks = $("#businessHours");
-var userEvent = $("#userInput");
-var clickToSave = $("#saveEvent");
-// var timeblocksContainer = $(".container");
-var timeblockRow = $(".row");
+// localStorage
+var appointments = {};
+var periods = 9;
+// var currentTime = moment("2023-03-17 13:59", "YYYY-MM-DD HH:mm");
+var currentTime = moment();
+var currentDate = currentTime.format("YYYY-MM-DD");
+// var currentDate = currentTime.format("dddd, MMMM Do YYYY");
 
-var eventArea = $(".input");
-var events = [];
-
-// This function takes advantage of moment() to target the element we assigned to the currentDay variable.
-// This will result in the current day being dynamically displayed when the page is opened.
+// Current day is dynamically displayed when page is opened.
 function displayCurrentDay() {
-  var currentDayAtPageOpen = moment().format("dddd, MMMM Do YYYY");
-  currentDay.text(currentDayAtPageOpen);
+  $("#currentDay").prepend(moment().format("dddd, MMMM Do YYYY"));
 }
 
-displayCurrentDay();
+// Example of what our agenda rows will look like and contain
+function generateDailyPlannerRow(index, rowColor, timeslot, text) {
+  $(".container").append(`
+  <div class="row time-block">
+    <div class="col-md-1 hour">${timeslot}</div>
+      <textarea id="textarea-${index}" class="col-md-10 description ${rowColor}" ></textarea>
+        <button class="col-md-1 btn saveBtn" data-value="${index}"><i class="fas fa-save"></i></button>
+  </div>
+  `);
 
-// This functions allow us to set a day start and a day end, which we can then use to append a div for each hour in our day scheduler.
-function createTimeblocks() {
-  var dayStarts = moment("9am", "h:a");
-  var workHours = 8 + 1;
+  $(`#textarea-${index}`).text(text);
+}
 
-  for (var i = 0; i < workHours; i++) {
-    var hourlyTimeblock = moment(dayStarts)
-      .add(1 * i, "hours")
-      .format("h A");
+// Replicate logic from `generateDailyPlannerRow` to generate a full page of appointments
+function generateDailyPlannerPage() {
+  // create relative to current date
+  let dayStarts = currentTime.clone().set({ hour: 9, minute: 0, seconds: 0 });
 
-    timeblockRow.addClass("row");
-    // console.log("hourlyTimeblock", hourlyTimeblock);
-    timeblocks.append(
-      `<div class="time-block hour" id="businessHours${i}">${hourlyTimeblock}</div>`
-    );
-    userEvent.append(
-      `<textarea class="description input" id="userInputSave" rows="4" cols="100"></textarea>`
-    );
-    clickToSave.append(
-      `<button class="btn saveBtn save" id="saveMyEvent" type="submit">Save</button>`
-    );
+  let events = appointments[currentDate] || [];
+
+  for (var i = 0; i < periods; i++) {
+    let timeslot = dayStarts.clone().add(i, "hours");
+    let rowColor = rowColorForTime(timeslot);
+    let text = events[i];
+
+    generateDailyPlannerRow(i, rowColor, timeslot.format("h A"), text);
   }
 }
 
-createTimeblocks();
-
-var clickToSaveButton = $(".save");
-
-function saveMyEvent() {
-  localStorage.setItem("myEvents", JSON.stringify(myEvents));
+// Manage time and change textarea/description color based on time.
+function rowColorForTime(timeslot) {
+  if (timeslot.isBefore(currentTime, "hours")) {
+    return "past";
+  } else if (timeslot.isAfter(currentTime, "hours")) {
+    return "future";
+  } else {
+    return "present";
+  }
 }
 
-clickToSaveButton.addEventListener("click", addToMySavedEvents);
+// Save to localStorage
+function storeAppointments() {
+  localStorage.setItem("appointments", JSON.stringify(appointments));
+}
 
-function addToMySavedEvents(event) {
+// Load from localStorage
+function loadAppointments() {
+  appointments = JSON.parse(localStorage.getItem("appointments")) || {};
+}
+
+// Trigger the initial set up for planner
+function loadPlanner() {
+  loadAppointments();
+  displayCurrentDay();
+  generateDailyPlannerPage();
+}
+
+loadPlanner();
+
+// What occurs once one of the save buttons is clicked.
+// Had to find a way (index) to be able to target each specific one in use
+$(".saveBtn").on("click", function () {
   event.preventDefault();
-  console.log(event, eventArea);
 
-  var addEvent = eventArea;
-  console.log(addEvent);
-  var savedEvents = JSON.parse(localStorage.getItem("myEvents")) || [];
+  let index = $(this).attr("data-value");
+  let value = $(`#textarea-${index}`).val();
 
-  if (savedEvents !== null) {
-    myEvents = savedEvents;
-  }
+  let events = appointments[currentDate] || Array(periods);
+  events[index] = value;
+  appointments[currentDate] = events;
 
-  myEvents.push(addEvent);
-  saveMyEvent();
-}
-
-addToMySavedEvents();
-
-function colorByTime() {}
-
-colorByTime;
+  storeAppointments();
+});
